@@ -71,7 +71,7 @@ def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
 def sample_control(control_toks, grad, batch_size, topk=256, temp=1, not_allowed_tokens=None):
 
     if not_allowed_tokens is not None:
-        grad[:, not_allowed_tokens.to(grad.device)] = np.infty
+        grad[:, not_allowed_tokens.to(grad.device)] = np.inf
 
     top_indices = (-grad).topk(topk, dim=1).indices
     control_toks = control_toks.to(grad.device)
@@ -96,20 +96,21 @@ def sample_control(control_toks, grad, batch_size, topk=256, temp=1, not_allowed
 def get_filtered_cands(tokenizer, control_cand, filter_cand=True, curr_control=None):
     cands, count = [], 0
     for i in range(control_cand.shape[0]):
-        decoded_str = tokenizer.decode(control_cand[i], skip_special_tokens=True)
+        
+        decoded_str = tokenizer.decode(control_cand[i][:90], skip_special_tokens=True)
+
         if filter_cand:
             if decoded_str != curr_control and len(tokenizer(decoded_str, add_special_tokens=False).input_ids) == len(control_cand[i]):
-                cands.append(decoded_str)
+                cands.append(decoded_str.strip())
             else:
                 count += 1
         else:
-            cands.append(decoded_str)
+            cands.append(decoded_str.strip())
 
     if filter_cand:
         cands = cands + [cands[-1]] * (len(control_cand) - len(cands))
         # print(f"Warning: {round(count / len(control_cand), 2)} control candidates were not valid")
     return cands
-
 
 def get_logits(*, model, tokenizer, input_ids, control_slice, test_controls=None, return_ids=False, batch_size=512):
     
@@ -195,7 +196,8 @@ def load_model_and_tokenizer(model_path, tokenizer_path=None, device='cuda:0', *
     tokenizer = AutoTokenizer.from_pretrained(
         tokenizer_path,
         trust_remote_code=True,
-        use_fast=False
+        use_fast=False,
+        legacy=False
     )
     
     if 'oasst-sft-6-llama-30b' in tokenizer_path:
